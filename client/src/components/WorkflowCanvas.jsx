@@ -1,12 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
-  ReactFlow,
-  MiniMap,
-  Controls,
-  Background,
-  useNodesState,
-  useEdgesState,
-  addEdge,
+  ReactFlow, MiniMap, Controls, Background,
+  useNodesState, useEdgesState, addEdge,
 } from '@xyflow/react';
 
 import TriggerNode from './nodes/TriggerNode';
@@ -16,7 +11,6 @@ import NodePanel from './NodePanel';
 
 import '@xyflow/react/dist/style.css';
 
-// IMPORTANT: Define outside component
 const nodeTypes = {
   trigger: TriggerNode,
   action: ActionNode,
@@ -24,18 +18,8 @@ const nodeTypes = {
 };
 
 const initialNodes = [
-  {
-    id: '1',
-    type: 'trigger',
-    position: { x: 100, y: 100 },
-    data: { label: 'Webhook' },
-  },
-  {
-    id: '2',
-    type: 'action',
-    position: { x: 400, y: 100 },
-    data: { label: 'HTTP Request' },
-  },
+  { id: '1', type: 'trigger', position: { x: 100, y: 100 }, data: { label: 'Webhook' } },
+  { id: '2', type: 'action', position: { x: 400, y: 100 }, data: { label: 'HTTP Request' } },
 ];
 
 const initialEdges = [
@@ -46,71 +30,85 @@ export default function WorkflowCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-
-  // Stable ID counter (better than nodes.length)
   const idCounter = useRef(3);
 
-  // Add node from panel
-  const handleAddNode = useCallback(
-    (type) => {
-      const id = `${idCounter.current++}`;
+  const handleAddNode = useCallback((type) => {
+    const id = `${idCounter.current++}`;
+    const newNode = {
+      id,
+      type,
+      position: {
+        x: Math.random() * 400 + 150,
+        y: Math.random() * 300 + 150,
+      },
+      data: {
+        label:
+          type === 'trigger' ? 'New Trigger' :
+          type === 'condition' ? 'New Condition' : 'New Action',
+      },
+    };
+    setNodes((nds) => [...nds, newNode]);
+  }, [setNodes]);
 
-      const newNode = {
-        id,
-        type,
-        position: {
-          x: Math.random() * 400 + 150,
-          y: Math.random() * 300 + 150,
-        },
-        data: {
-          label:
-            type === 'trigger'
-              ? 'New Trigger'
-              : type === 'condition'
-              ? 'New Condition'
-              : 'New Action',
-        },
-      };
+  const onConnect = useCallback((connection) => {
+    setEdges((eds) => {
+      const exists = eds.some(
+        (edge) => edge.source === connection.source && edge.target === connection.target
+      );
+      if (exists) return eds;
+      return addEdge(connection, eds);
+    });
+  }, [setEdges]);
 
-      setNodes((nds) => [...nds, newNode]);
-    },
-    [setNodes]
-  );
-
-  // Prevent duplicate edges
-  const onConnect = useCallback(
-    (connection) => {
-      setEdges((eds) => {
-        const exists = eds.some(
-          (edge) =>
-            edge.source === connection.source &&
-            edge.target === connection.target
-        );
-
-        if (exists) return eds;
-
-        return addEdge(connection, eds);
+  // ✅ INSIDE the component
+  const handleSave = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'My Workflow', nodes, edges }),
       });
-    },
-    [setEdges]
-  );
+      const data = await res.json();
+      if (data.success) alert('Workflow saved!');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save workflow');
+    }
+  };
 
+  // ✅ INSIDE the component
+  const handleLoad = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/workflows');
+      const data = await res.json();
+      if (data.length === 0) { alert('No workflows found'); return; }
+      const latest = data[data.length - 1];
+      setNodes(latest.nodes);
+      setEdges(latest.edges);
+      alert('Workflow loaded!');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to load workflow');
+    }
+  };
+
+  // ✅ return is the LAST thing inside the component
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
-      
-      {/* Toggle Sidebar Button */}
+
       <div style={{ position: 'absolute', top: 20, left: isPanelOpen ? 270 : 20, zIndex: 20, transition: 'left 0.2s' }}>
         <button onClick={() => setIsPanelOpen((prev) => !prev)}>
-        {isPanelOpen ? '✕' : '+'}
+          {isPanelOpen ? '✕' : '+'}
         </button>
-        </div>
+      </div>
 
-      {/* Sidebar */}
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 20 }}>
+        <button onClick={handleSave} style={{ marginRight: 10 }}>Save</button>
+        <button onClick={handleLoad}>Load</button>
+      </div>
+
       {isPanelOpen && (
-        <NodePanel
-          onAdd={handleAddNode}
-          onClose={() => setIsPanelOpen(false)}
-        />
+        <NodePanel onAdd={handleAddNode} onClose={() => setIsPanelOpen(false)} />
       )}
 
       <ReactFlow
@@ -128,4 +126,4 @@ export default function WorkflowCanvas() {
       </ReactFlow>
     </div>
   );
-}
+} // ✅ component ends here — nothing after this line
