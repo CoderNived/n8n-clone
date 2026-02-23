@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
+const { executeWorkflow } = require('./executor');
 
 const app = express();
 const PORT = 5000;
@@ -54,6 +55,29 @@ app.get('/workflows', (req, res) => {
   }
 });
 
+// POST /workflows/:id/execute - Execute workflow
+app.post('/workflows/:id/execute', (req, res) => {
+  try {
+    const workflow = db
+      .prepare('SELECT * FROM workflows WHERE id = ?')
+      .get(req.params.id);
+
+    if (!workflow) {
+      return res.status(404).json({ error: 'Workflow not found' });
+    }
+
+    const nodes = JSON.parse(workflow.nodes);
+    const edges = JSON.parse(workflow.edges);
+    const results = executeWorkflow(nodes, edges);
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Execution failed' });
+  }
+});
+
+// ✅ app.listen is always last
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

@@ -30,6 +30,7 @@ export default function WorkflowCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [workflowId, setWorkflowId] = useState(null);
   const idCounter = useRef(3);
 
   const handleAddNode = useCallback((type) => {
@@ -60,7 +61,6 @@ export default function WorkflowCanvas() {
     });
   }, [setEdges]);
 
-  // ✅ INSIDE the component
   const handleSave = async () => {
     try {
       const res = await fetch('http://localhost:5000/workflows', {
@@ -69,14 +69,16 @@ export default function WorkflowCanvas() {
         body: JSON.stringify({ name: 'My Workflow', nodes, edges }),
       });
       const data = await res.json();
-      if (data.success) alert('Workflow saved!');
+      if (data.success) {
+        setWorkflowId(data.id);
+        alert('Workflow saved!');
+      }
     } catch (error) {
       console.error(error);
       alert('Failed to save workflow');
     }
   };
 
-  // ✅ INSIDE the component
   const handleLoad = async () => {
     try {
       const res = await fetch('http://localhost:5000/workflows');
@@ -85,6 +87,7 @@ export default function WorkflowCanvas() {
       const latest = data[data.length - 1];
       setNodes(latest.nodes);
       setEdges(latest.edges);
+      setWorkflowId(latest.id);
       alert('Workflow loaded!');
     } catch (error) {
       console.error(error);
@@ -92,7 +95,23 @@ export default function WorkflowCanvas() {
     }
   };
 
-  // ✅ return is the LAST thing inside the component
+  const handleRun = async () => {
+    try {
+      if (!workflowId) { alert('Please save the workflow first!'); return; }
+      const res = await fetch(`http://localhost:5000/workflows/${workflowId}/execute`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        const output = data.results.map((r) => `${r.label}: ${r.status}`).join('\n');
+        alert(output);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Execution failed');
+    }
+  };
+
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
 
@@ -104,7 +123,10 @@ export default function WorkflowCanvas() {
 
       <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 20 }}>
         <button onClick={handleSave} style={{ marginRight: 10 }}>Save</button>
-        <button onClick={handleLoad}>Load</button>
+        <button onClick={handleLoad} style={{ marginRight: 10 }}>Load</button>
+        <button onClick={handleRun} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}>
+          ▶ Run
+        </button>
       </div>
 
       {isPanelOpen && (
@@ -126,4 +148,4 @@ export default function WorkflowCanvas() {
       </ReactFlow>
     </div>
   );
-} // ✅ component ends here — nothing after this line
+}
